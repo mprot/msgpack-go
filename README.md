@@ -12,7 +12,7 @@ type Encoder interface {
 	EncodeMsgpack(w *Writer) error
 }
 ```
-and writes its value to the given writer. The `Writer` type provides a `Write*` method for each supported data type. For a complete overview of the `Writer` type, see the [documentation](https://godoc.org/github.com/tsne/msgpack-go#Writer).
+and writes its value to the given writer. The `Writer` type provides a `Write*` method for each supported data type. For a complete overview of the `Writer` type, see the [documentation](https://godoc.org/github.com/mprot/msgpack-go#Writer).
 
 ## Decoding
 To decode binary MessagePack data into values, a `Decode` function is provided:
@@ -26,10 +26,10 @@ type Decoder interface {
 }
 ```
 and reads the necessary values from the given reader. The `Reader` type provides a `Read*` method for each supported data type. Furthermore, a reader provides the following extra methods:
-* [Peek](https://godoc.org/github.com/tsne/msgpack-go#Reader.Peek) for looking up the next type in the stream without moving the read pointer, and
-* [Skip](https://godoc.org/github.com/tsne/msgpack-go#Reader.Skip) for skipping any value which comes next in the stream.
+* [Peek](https://godoc.org/github.com/mprot/msgpack-go#Reader.Peek) for looking up the next type in the stream without moving the read pointer, and
+* [Skip](https://godoc.org/github.com/mprot/msgpack-go#Reader.Skip) for skipping any value which comes next in the stream.
 
-For a complete overview of the `Reader` type, see the [documentation](https://godoc.org/github.com/tsne/msgpack-go#Reader).
+For a complete overview of the `Reader` type, see the [documentation](https://godoc.org/github.com/mprot/msgpack-go#Reader).
 
 ## Example
 ```Go
@@ -39,7 +39,7 @@ import (
 	"bytes"
 	"log"
 
-	msgpack "github.com/tsne/msgpack-go"
+	msgpack "github.com/mprot/msgpack-go"
 )
 
 type Custom struct {
