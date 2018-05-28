@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,8 @@ const (
 	maxInt  = int(maxUint >> 1)
 	minInt  = -maxInt - 1
 )
+
+var readerPool sync.Pool
 
 // Reader defines a reader for MessagePack encoded data.
 type Reader struct {
@@ -25,10 +28,24 @@ type Reader struct {
 
 // NewReader creates a reader for MessagePack encoded data read from r.
 func NewReader(r io.Reader) *Reader {
+	if v := readerPool.Get(); v != nil {
+		reader := v.(*Reader)
+		reader.r = r
+		reader.first = 0
+		reader.last = 0
+		reader.err = nil
+		return reader
+	}
+
 	return &Reader{
 		r:   r,
 		buf: make([]byte, 1024),
 	}
+}
+
+func releaseReader(r *Reader) {
+	r.r = nil
+	readerPool.Put(r)
 }
 
 // Peek returns the type for the next element without moving the
@@ -461,6 +478,13 @@ func (r *Reader) ReadMapHeader() (int, error) {
 	})
 }
 
+// ReadRaw reads the next value from the MessagePack stream into raw.
+func (r *Reader) ReadRaw(raw Raw) (Raw, error) {
+	raw = raw[:0]
+	err := r.readRaw(func(p []byte) { raw = append(raw, p...) })
+	return raw, err
+}
+
 // ReadExt reads an extension value from the MessagePack stream. The given extension type
 // must match the extension type found in the stream.
 func (r *Reader) ReadExt(typ int8, v encoding.BinaryUnmarshaler) error {
@@ -471,6 +495,7 @@ func (r *Reader) ReadExt(typ int8, v encoding.BinaryUnmarshaler) error {
 	return v.UnmarshalBinary(data)
 }
 
+// ReadTime reads a time value from the MessagePack stream.
 func (r *Reader) ReadTime() (time.Time, error) {
 	data, err := r.readExtension(extTime)
 	if err != nil {
@@ -495,140 +520,7 @@ func (r *Reader) ReadTime() (time.Time, error) {
 
 // Skip skips the next value in the MessagePack stream.
 func (r *Reader) Skip() error {
-	tag, err := r.peek()
-	if err != nil {
-		return err
-	}
-
-	switch tag {
-	case tagNil, tagFalse, tagTrue:
-		_, err := r.read(1)
-		return err
-	case tagInt8, tagUint8:
-		_, err := r.read(2)
-		return err
-	case tagInt16, tagUint16:
-		_, err := r.read(3)
-		return err
-	case tagInt32, tagUint32, tagFloat32:
-		_, err := r.read(5)
-		return err
-	case tagInt64, tagUint64, tagFloat64:
-		_, err := r.read(9)
-		return err
-	case tagStr8, tagBin8:
-		buf, err := r.read(2)
-		if err == nil {
-			_, err = r.read(int(buf[1]))
-		}
-		return err
-	case tagStr16, tagBin16:
-		buf, err := r.read(3)
-		if err == nil {
-			_, err = r.read(int(binary.BigEndian.Uint16(buf[1:])))
-		}
-		return err
-	case tagStr32, tagBin32:
-		buf, err := r.read(5)
-		if err == nil {
-			_, err = r.read(int(binary.BigEndian.Uint32(buf[1:])))
-		}
-		return err
-	case tagArray16:
-		buf, err := r.read(3)
-		if err != nil {
-			return err
-		}
-		for i, n := uint16(0), binary.BigEndian.Uint16(buf[1:]); i < n; i++ {
-			if err := r.Skip(); err != nil {
-				return err
-			}
-		}
-		return nil
-	case tagArray32:
-		buf, err := r.read(5)
-		if err != nil {
-			return err
-		}
-		for i, n := uint32(0), binary.BigEndian.Uint32(buf[1:]); i < n; i++ {
-			if err := r.Skip(); err != nil {
-				return err
-			}
-		}
-		return nil
-	case tagMap16:
-		buf, err := r.read(3)
-		if err != nil {
-			return err
-		}
-		for i, n := uint16(0), 2*binary.BigEndian.Uint16(buf[1:]); i < n; i++ {
-			if err := r.Skip(); err != nil {
-				return err
-			}
-		}
-		return nil
-	case tagMap32:
-		buf, err := r.read(5)
-		if err != nil {
-			return err
-		}
-		for i, n := uint32(0), 2*binary.BigEndian.Uint32(buf[1:]); i < n; i++ {
-			if err := r.Skip(); err != nil {
-				return err
-			}
-		}
-		return nil
-	case tagFixExt1:
-		_, err := r.read(3)
-		return err
-	case tagFixExt2:
-		_, err := r.read(4)
-		return err
-	case tagFixExt4:
-		_, err := r.read(6)
-		return err
-	case tagFixExt8:
-		_, err := r.read(10)
-		return err
-	case tagFixExt16:
-		_, err := r.read(18)
-		return err
-	case tagExt8:
-		buf, err := r.read(3)
-		if err == nil {
-			_, err = r.read(int(buf[1]))
-		}
-		return err
-	case tagExt16:
-		buf, err := r.read(4)
-		if err == nil {
-			_, err = r.read(int(binary.BigEndian.Uint16(buf[1:])))
-		}
-		return err
-	case tagExt32:
-		buf, err := r.read(6)
-		if err == nil {
-			_, err = r.read(int(binary.BigEndian.Uint32(buf[1:])))
-		}
-		return err
-	}
-
-	switch {
-	case isPosFixintTag(tag) || isNegFixintTag(tag):
-		_, err := r.read(1)
-		return err
-	case isFixstrTag(tag):
-		_, err := r.read(1 + int(readFixstr(tag)))
-		return err
-	case isFixarrayTag(tag):
-		_, err := r.read(1 + int(readFixarray(tag)))
-		return err
-	case isFixmapTag(tag):
-		_, err := r.read(1 + 2*int(readFixmap(tag)))
-		return err
-	}
-
-	return errorf("unknown tag %#02x", tag)
+	return r.readRaw(func([]byte) {})
 }
 
 func (r *Reader) readBlob(p []byte, expectedType Type) ([]byte, error) {
@@ -864,6 +756,183 @@ func (r *Reader) readFull(p []byte) error {
 		}
 	}
 	return r.err
+}
+
+func (r *Reader) readRaw(f func([]byte)) error {
+	tag, err := r.peek()
+	if err != nil {
+		return err
+	}
+
+	switch tag {
+	case tagNil, tagFalse, tagTrue:
+		p, err := r.read(1)
+		f(p)
+		return err
+	case tagInt8, tagUint8:
+		p, err := r.read(2)
+		f(p)
+		return err
+	case tagInt16, tagUint16:
+		p, err := r.read(3)
+		f(p)
+		return err
+	case tagInt32, tagUint32, tagFloat32:
+		p, err := r.read(5)
+		f(p)
+		return err
+	case tagInt64, tagUint64, tagFloat64:
+		p, err := r.read(9)
+		f(p)
+		return err
+	case tagStr8, tagBin8:
+		p, err := r.peekn(2)
+		if err == nil {
+			p, err = r.read(2 + int(p[1]))
+			f(p)
+		}
+		return err
+	case tagStr16, tagBin16:
+		p, err := r.peekn(3)
+		if err == nil {
+			p, err = r.read(3 + int(binary.BigEndian.Uint16(p[1:])))
+			f(p)
+		}
+		return err
+	case tagStr32, tagBin32:
+		p, err := r.peekn(5)
+		if err == nil {
+			p, err = r.read(5 + int(binary.BigEndian.Uint32(p[1:])))
+			f(p)
+		}
+		return err
+	case tagArray16:
+		p, err := r.read(3)
+		if err != nil {
+			return err
+		}
+		f(p)
+		for i, n := uint16(0), binary.BigEndian.Uint16(p[1:]); i < n; i++ {
+			if err := r.readRaw(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	case tagArray32:
+		p, err := r.read(5)
+		if err != nil {
+			return err
+		}
+		f(p)
+		for i, n := uint32(0), binary.BigEndian.Uint32(p[1:]); i < n; i++ {
+			if err := r.readRaw(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	case tagMap16:
+		p, err := r.read(3)
+		if err != nil {
+			return err
+		}
+		f(p)
+		for i, n := uint16(0), 2*binary.BigEndian.Uint16(p[1:]); i < n; i++ {
+			if err := r.readRaw(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	case tagMap32:
+		p, err := r.read(5)
+		if err != nil {
+			return err
+		}
+		f(p)
+		for i, n := uint32(0), 2*binary.BigEndian.Uint32(p[1:]); i < n; i++ {
+			if err := r.readRaw(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	case tagFixExt1:
+		p, err := r.read(3)
+		f(p)
+		return err
+	case tagFixExt2:
+		p, err := r.read(4)
+		f(p)
+		return err
+	case tagFixExt4:
+		p, err := r.read(6)
+		f(p)
+		return err
+	case tagFixExt8:
+		p, err := r.read(10)
+		f(p)
+		return err
+	case tagFixExt16:
+		p, err := r.read(18)
+		f(p)
+		return err
+	case tagExt8:
+		p, err := r.peekn(3)
+		if err == nil {
+			p, err = r.read(3 + int(p[1]))
+			f(p)
+		}
+		return err
+	case tagExt16:
+		p, err := r.peekn(4)
+		if err == nil {
+			p, err = r.read(4 + int(binary.BigEndian.Uint16(p[1:])))
+			f(p)
+		}
+		return err
+	case tagExt32:
+		p, err := r.peekn(6)
+		if err == nil {
+			p, err = r.read(6 + int(binary.BigEndian.Uint32(p[1:])))
+			f(p)
+		}
+		return err
+	}
+
+	switch {
+	case isPosFixintTag(tag) || isNegFixintTag(tag):
+		p, err := r.read(1)
+		f(p)
+		return err
+	case isFixstrTag(tag):
+		p, err := r.read(1 + int(readFixstr(tag)))
+		f(p)
+		return err
+	case isFixarrayTag(tag):
+		p, err := r.read(1)
+		if err != nil {
+			return err
+		}
+		f(p)
+		for i, n := 0, int(readFixarray(tag)); i < n; i++ {
+			if r.readRaw(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	case isFixmapTag(tag):
+		p, err := r.read(1)
+		if err != nil {
+			return err
+		}
+		f(p)
+		for i, n := 0, 2*int(readFixmap(tag)); i < n; i++ {
+			if r.readRaw(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return errorf("unknown tag %#02x", tag)
 }
 
 func (r *Reader) advance(n int) {

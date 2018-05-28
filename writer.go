@@ -229,6 +229,13 @@ func (w *Writer) WriteMapHeader(length int) error {
 	return w.writeCollectionHeader(tagMap16, length)
 }
 
+// WriteRaw writes raw bytes to the MessagePack stream, which represent an
+// already encoded section.
+func (w *Writer) WriteRaw(r Raw) error {
+	_, err := w.w.Write(r)
+	return err
+}
+
 // WriteExt writes an extension value to the MessagePack stream.
 func (w *Writer) WriteExt(typ int8, v encoding.BinaryMarshaler) error {
 	if typ < 0 {

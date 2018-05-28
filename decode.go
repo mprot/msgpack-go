@@ -1,6 +1,8 @@
 package msgpack
 
-import "io"
+import (
+	"io"
+)
 
 // Decoder defines an interface for types which are able to decode
 // themselves from an MessagePack encoding.
@@ -10,5 +12,8 @@ type Decoder interface {
 
 // Decode decodes the MessagePack encoding provided by r into v.
 func Decode(r io.Reader, v Decoder) error {
-	return v.DecodeMsgpack(NewReader(r))
+	reader := NewReader(r)
+	err := v.DecodeMsgpack(reader)
+	releaseReader(reader)
+	return err
 }

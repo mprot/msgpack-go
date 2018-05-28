@@ -303,6 +303,132 @@ func TestReaderRead(t *testing.T) {
 			value: 3,
 			read:  func(r *Reader) (interface{}, error) { return r.ReadMapHeader() },
 		},
+		// raw
+		{
+			data:  []byte{tagTrue},
+			value: Raw{tagTrue},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagUint8, 0x00},
+			value: Raw{tagUint8, 0x00},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagInt16, 0x00, 0x00},
+			value: Raw{tagInt16, 0x00, 0x00},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFloat32, 0x00, 0x00, 0x00, 0x00},
+			value: Raw{tagFloat32, 0x00, 0x00, 0x00, 0x00},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFloat64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			value: Raw{tagFloat64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagBin8, 0x03, ' ', ' ', ' '},
+			value: Raw{tagBin8, 0x03, ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagBin16, 0x0, 0x03, ' ', ' ', ' '},
+			value: Raw{tagBin16, 0x0, 0x03, ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagBin32, 0x0, 0x0, 0x0, 0x03, ' ', ' ', ' '},
+			value: Raw{tagBin32, 0x0, 0x0, 0x0, 0x03, ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagArray16, 0x0, 0x03, tagNil, tagNil, tagNil},
+			value: Raw{tagArray16, 0x0, 0x03, tagNil, tagNil, tagNil},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagArray32, 0x0, 0x0, 0x0, 0x03, tagNil, tagNil, tagNil},
+			value: Raw{tagArray32, 0x0, 0x0, 0x0, 0x03, tagNil, tagNil, tagNil},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagMap16, 0x0, 0x03, tagNil, tagNil, tagNil, tagNil, tagNil, tagNil},
+			value: Raw{tagMap16, 0x0, 0x03, tagNil, tagNil, tagNil, tagNil, tagNil, tagNil},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagMap32, 0x0, 0x0, 0x0, 0x03, tagNil, tagNil, tagNil, tagNil, tagNil, tagNil},
+			value: Raw{tagMap32, 0x0, 0x0, 0x0, 0x03, tagNil, tagNil, tagNil, tagNil, tagNil, tagNil},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFixExt1, 0x0d, ' '},
+			value: Raw{tagFixExt1, 0x0d, ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFixExt2, 0x0d, ' ', ' '},
+			value: Raw{tagFixExt2, 0x0d, ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFixExt4, 0x0d, ' ', ' ', ' ', ' '},
+			value: Raw{tagFixExt4, 0x0d, ' ', ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFixExt8, 0x0d, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
+			value: Raw{tagFixExt8, 0x0d, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagFixExt16, 0x0d, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
+			value: Raw{tagFixExt16, 0x0d, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagExt8, 0x05, 0x0d, ' ', ' ', ' ', ' ', ' '},
+			value: Raw{tagExt8, 0x05, 0x0d, ' ', ' ', ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagExt16, 0x0, 0x05, 0x0d, ' ', ' ', ' ', ' ', ' '},
+			value: Raw{tagExt16, 0x0, 0x05, 0x0d, ' ', ' ', ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{tagExt32, 0x0, 0x0, 0x0, 0x05, 0x0d, ' ', ' ', ' ', ' ', ' '},
+			value: Raw{tagExt32, 0x0, 0x0, 0x0, 0x05, 0x0d, ' ', ' ', ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{posFixintTag(7)},
+			value: Raw{posFixintTag(7)},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{negFixintTag(-7)},
+			value: Raw{negFixintTag(-7)},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{fixstrTag(3), ' ', ' ', ' '},
+			value: Raw{fixstrTag(3), ' ', ' ', ' '},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{fixarrayTag(3), tagNil, tagNil, tagNil},
+			value: Raw{fixarrayTag(3), tagNil, tagNil, tagNil},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
+		{
+			data:  []byte{fixmapTag(3), tagNil, tagNil, tagNil, tagNil, tagNil, tagNil},
+			value: Raw{fixmapTag(3), tagNil, tagNil, tagNil, tagNil, tagNil, tagNil},
+			read:  func(r *Reader) (interface{}, error) { return r.ReadRaw(nil) },
+		},
 		// ext
 		{
 			data: []byte{tagFixExt1, 0xd, ' '},

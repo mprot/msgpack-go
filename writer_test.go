@@ -138,6 +138,11 @@ func TestWriterWrite(t *testing.T) {
 			write: func(w *Writer) error { return w.WriteMapHeader(math.MaxUint32) },
 			data:  []byte{tagMap32, 0xff, 0xff, 0xff, 0xff},
 		},
+		// raw
+		{
+			write: func(w *Writer) error { return w.WriteRaw(Raw{0x01, 0x02, 0x03, 0x04, 0x05}) },
+			data:  []byte{0x01, 0x02, 0x03, 0x04, 0x05},
+		},
 		// ext
 		{
 			write: func(w *Writer) error { return w.WriteExt(0xd, bytesMarshaler(bytes.Repeat([]byte{'0'}, 1))) },
