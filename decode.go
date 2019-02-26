@@ -17,3 +17,8 @@ func Decode(r io.Reader, v Decoder) error {
 	releaseReader(reader)
 	return err
 }
+
+// Unmarshal unmarshals the MessagePack encoding provided by data into v.
+func Unmarshal(p []byte, v Decoder) error {
+	return v.DecodeMsgpack(NewReaderBytes(p))
+}

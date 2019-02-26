@@ -37,12 +37,6 @@ func (e floatOverflowError) Error() string {
 	return "floating-point overflow"
 }
 
-type timeOverflowError struct{}
-
-func (e timeOverflowError) Error() string {
-	return "time overflow"
-}
-
 type invalidExtensionError struct {
 	typ int8
 }

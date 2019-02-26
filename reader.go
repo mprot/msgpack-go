@@ -43,6 +43,17 @@ func NewReader(r io.Reader) *Reader {
 	}
 }
 
+// NewReaderBytes creates a reader for MessagePack encoded data. The reader
+// reads all data from p.
+func NewReaderBytes(p []byte) *Reader {
+	return &Reader{
+		r:     eofReader{},
+		buf:   p,
+		first: 0,
+		last:  len(p),
+	}
+}
+
 func releaseReader(r *Reader) {
 	r.r = nil
 	readerPool.Put(r)
@@ -427,18 +438,43 @@ func (r *Reader) ReadFloat64() (float64, error) {
 	}
 }
 
-// ReadBytes reads a binary value from the MessagePack stream.
+// ReadBytes reads a binary value from the MessagePack stream. The data
+// will be copied to p if it fits. Otherwise a new slice will be allocated.
 func (r *Reader) ReadBytes(p []byte) ([]byte, error) {
-	return r.readBlob(p, Bytes)
+	n, err := r.readBlobHeader(Bytes)
+	if err != nil || n == 0 {
+		return nil, err
+	}
+
+	if cap(p) < n {
+		p = make([]byte, n)
+	}
+	p = p[:n]
+	err = r.readFull(p)
+	return p, err
+}
+
+// ReadBytesNoCopy reads a binary value from the MessagePack stream. The data
+// is directly passed from the underlying buffer. This could result in a buffer
+// reallocation.
+func (r *Reader) ReadBytesNoCopy() ([]byte, error) {
+	n, err := r.readBlobHeader(Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return r.read(n)
 }
 
 // ReadString reads a string value from the MessagePack stream.
 func (r *Reader) ReadString() (string, error) {
-	b, err := r.readBlob(nil, String)
-	if err != nil || len(b) == 0 {
+	n, err := r.readBlobHeader(String)
+	if err != nil || n == 0 {
 		return "", err
 	}
-	return string(b), nil
+
+	p := make([]byte, n)
+	err = r.readFull(p)
+	return string(p), err
 }
 
 // ReadArrayHeader reads the header of an array value from the MessagePack stream
@@ -523,58 +559,45 @@ func (r *Reader) Skip() error {
 	return r.readRaw(func([]byte) {})
 }
 
-func (r *Reader) readBlob(p []byte, expectedType Type) ([]byte, error) {
+func (r *Reader) readBlobHeader(expectedType Type) (int, error) {
 	tag, err := r.peek()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	var n int64
 	switch tag {
 	case tagNil:
 		r.advance(1)
-		return p[:0], nil
+		return 0, nil
 
 	case tagBin8, tagStr8:
 		buf, err := r.read(2)
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
-		n = int64(buf[1])
+		return int(buf[1]), nil
 
 	case tagBin16, tagStr16:
 		buf, err := r.read(3)
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
-		n = int64(binary.BigEndian.Uint16(buf[1:]))
+		return int(binary.BigEndian.Uint16(buf[1:])), nil
 
 	case tagBin32, tagStr32:
 		buf, err := r.read(5)
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
-		n = int64(binary.BigEndian.Uint32(buf[1:]))
+		return int(binary.BigEndian.Uint32(buf[1:])), nil
 
 	default:
 		if !isFixstrTag(tag) {
-			return nil, r.typeErr(tag, expectedType)
+			return 0, r.typeErr(tag, expectedType)
 		}
-		n = int64(readFixstr(tag))
 		r.advance(1)
+		return int(readFixstr(tag)), nil
 	}
-
-	switch {
-	case n == 0:
-		return p[:0], nil
-	case n > int64(cap(p)):
-		p = make([]byte, n)
-	default:
-		p = p[:n]
-	}
-
-	err = r.readFull(p)
-	return p, err
 }
 
 func (r *Reader) readCollectionHeader(tagBase byte, expectedTyp Type, readFix func(byte) (uint8, bool)) (int, error) {
@@ -943,13 +966,17 @@ func (r *Reader) fillBuf(minSize int) error {
 	if r.err != nil {
 		return r.err
 	}
+
 	if r.first != 0 {
 		copy(r.buf, r.buf[r.first:r.last])
 		r.last -= r.first
 		r.first = 0
 	}
+	if len(r.buf) < minSize {
+		r.buf = make([]byte, minSize)
+	}
 
-	for r.first+minSize > r.last {
+	for minSize > r.last {
 		n, err := r.r.Read(r.buf[r.last:])
 		if err != nil {
 			r.err = err
@@ -959,3 +986,7 @@ func (r *Reader) fillBuf(minSize int) error {
 	}
 	return nil
 }
+
+type eofReader struct{}
+
+func (r eofReader) Read(p []byte) (int, error) { return 0, io.EOF }

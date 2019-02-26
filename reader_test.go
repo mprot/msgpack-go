@@ -480,8 +480,11 @@ func TestReaderRead(t *testing.T) {
 		},
 	}
 
+	var stream []byte
+
+	// single
 	for _, test := range tests {
-		r := NewReader(bytes.NewReader(test.data))
+		r := NewReaderBytes(test.data)
 		val, err := test.read(r)
 		if err != nil {
 			t.Errorf("unexpected read error: %v", err)
@@ -491,6 +494,19 @@ func TestReaderRead(t *testing.T) {
 
 		if _, err = r.Peek(); err != io.EOF {
 			t.Errorf("unexpected error for %s(%x): %v", tagType(test.data[0]), test.data, err)
+		}
+
+		stream = append(stream, test.data...)
+	}
+
+	// stream
+	r := NewReader(bytes.NewReader(stream))
+	for _, test := range tests {
+		val, err := test.read(r)
+		if err != nil {
+			t.Errorf("unexpected read error: %v", err)
+		} else if !reflect.DeepEqual(val, test.value) {
+			t.Errorf("unexpected value for %s(%x): %v", tagType(test.data[0]), test.data, val)
 		}
 	}
 }
