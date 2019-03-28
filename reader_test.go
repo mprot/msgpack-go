@@ -981,6 +981,20 @@ func TestReaderError(t *testing.T) {
 	}
 }
 
+func TestReaderBufferRealloc(t *testing.T) {
+	data := []byte{tagBin8, 0x03, 'f', 'o', 'o'}
+	r := NewReader(bytes.NewReader(data))
+	r.buf = r.buf[:2] // enforce reallocation
+
+	p, err := r.ReadBytesNoCopy()
+	switch {
+	case err != nil:
+		t.Errorf("unexpected error: %v", err)
+	case string(p) != "foo":
+		t.Errorf("unexpected bytes read: %v", p)
+	}
+}
+
 type nopBinaryMarshaler struct{}
 
 func (m nopBinaryMarshaler) UnmarshalBinary(p []byte) error {

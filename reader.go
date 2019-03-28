@@ -967,16 +967,17 @@ func (r *Reader) fillBuf(minSize int) error {
 		return r.err
 	}
 
-	if r.first != 0 {
-		copy(r.buf, r.buf[r.first:r.last])
-		r.last -= r.first
-		r.first = 0
-	}
 	if len(r.buf) < minSize {
-		r.buf = make([]byte, minSize)
+		buf := make([]byte, minSize)
+		n := copy(buf, r.buf[r.first:r.last])
+		r.buf = buf
+		r.first, r.last = 0, n
+	} else if r.first != 0 {
+		n := copy(r.buf, r.buf[r.first:r.last])
+		r.first, r.last = 0, n
 	}
 
-	for minSize > r.last {
+	for r.last < minSize {
 		n, err := r.r.Read(r.buf[r.last:])
 		if err != nil {
 			r.err = err
