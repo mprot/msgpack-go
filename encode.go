@@ -1,7 +1,6 @@
 package msgpack
 
 import (
-	"bytes"
 	"io"
 )
 
@@ -18,7 +17,21 @@ func Encode(w io.Writer, v Encoder) error {
 
 // Marshal encodes v into the MessagePack encoding and returns its encoding.
 func Marshal(v Encoder) ([]byte, error) {
-	var buf bytes.Buffer
-	err := Encode(&buf, v)
-	return buf.Bytes(), err
+	return AppendMarshal(v, nil)
+}
+
+// AppendMarshal encodes v into the MessagePack encoding and appends it to buf.
+func AppendMarshal(v Encoder, buf []byte) ([]byte, error) {
+	appender := &byteAppender{buf: buf}
+	err := Encode(appender, v)
+	return appender.buf, err
+}
+
+type byteAppender struct {
+	buf []byte
+}
+
+func (a *byteAppender) Write(p []byte) (int, error) {
+	a.buf = append(a.buf, p...)
+	return len(p), nil
 }
